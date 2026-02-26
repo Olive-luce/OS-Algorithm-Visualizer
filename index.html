@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OS Scheduling Algorithms Visualizer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+* { box-sizing: border-box; font-family: Arial, sans-serif; }
+
+body {
+  background:#0f172a;
+  color:#e5e7eb;
+  padding:20px;
+}
+
+h1 {
+  text-align:center;
+  margin-bottom:30px;
+}
+
+.container {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap:20px;
+}
+
+.card {
+  background:#020617;
+  border:1px solid #334155;
+  border-radius:10px;
+  padding:20px;
+}
+
+textarea {
+  width:100%;
+  height:90px;
+  background:#020617;
+  color:#e5e7eb;
+  border:1px solid #475569;
+  padding:8px;
+  border-radius:5px;
+}
+
+input {
+  width:100%;
+  padding:6px;
+  margin-top:5px;
+  background:#020617;
+  color:#e5e7eb;
+  border:1px solid #475569;
+  border-radius:5px;
+}
+
+button {
+  margin-top:10px;
+  background:#22c55e;
+  color:#022c22;
+  border:none;
+  padding:8px 14px;
+  font-weight:bold;
+  border-radius:5px;
+  cursor:pointer;
+}
+
+button:hover { background:#16a34a; }
+
+/* GANTT */
+.gantt {
+  display:flex;
+  height:50px;
+  margin-top:15px;
+  border:1px solid #475569;
+}
+
+.block {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(135deg,#38bdf8,#0ea5e9);
+  color:#020617;
+  font-weight:bold;
+  border-right:2px solid #020617;
+  width:0;
+  animation:grow 0.6s ease-out forwards;
+}
+
+@keyframes grow {
+  to { width: var(--w); }
+}
+
+.scale {
+  display:flex;
+  font-size:12px;
+}
+
+table {
+  width:100%;
+  margin-top:10px;
+  border-collapse:collapse;
+}
+
+th, td {
+  border:1px solid #475569;
+  padding:6px;
+  text-align:center;
+}
+
+.avg {
+  margin-top:10px;
+  font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>OS Scheduling Algorithms Visualizer</h1>
+
+<div class="container">
+
+<!-- FCFS -->
+<div class="card">
+<h3>First Come First Serve (FCFS)</h3>
+<textarea id="fcfs-in">P1 0 5
+P2 1 3
+P3 2 4</textarea>
+<button onclick="runFCFS()">Run</button>
+<div class="gantt" id="fcfs-g"></div>
+<div class="scale" id="fcfs-s"></div>
+<table id="fcfs-t"></table>
+<div class="avg" id="fcfs-a"></div>
+</div>
+
+<!-- SJF -->
+<div class="card">
+<h3>Shortest Job First (SJF)</h3>
+<textarea id="sjf-in">P1 0 6
+P2 2 4
+P3 4 2</textarea>
+<button onclick="runSJF()">Run</button>
+<div class="gantt" id="sjf-g"></div>
+<div class="scale" id="sjf-s"></div>
+<table id="sjf-t"></table>
+<div class="avg" id="sjf-a"></div>
+</div>
+
+<!-- PRIORITY -->
+<div class="card">
+<h3>Priority Scheduling</h3>
+<p style="font-size:12px;">Format: PID AT BT Priority</p>
+<textarea id="pri-in">P1 0 5 2
+P2 1 3 1
+P3 2 4 3</textarea>
+<button onclick="runPriority()">Run</button>
+<div class="gantt" id="pri-g"></div>
+<div class="scale" id="pri-s"></div>
+<table id="pri-t"></table>
+<div class="avg" id="pri-a"></div>
+</div>
+
+<!-- RR -->
+<div class="card">
+<h3>Round Robin (RR)</h3>
+<input id="qt" placeholder="Time Quantum" value="2">
+<textarea id="rr-in">P1 0 5
+P2 1 4
+P3 2 3</textarea>
+<button onclick="runRR()">Run</button>
+<div class="gantt" id="rr-g"></div>
+<div class="scale" id="rr-s"></div>
+<table id="rr-t"></table>
+<div class="avg" id="rr-a"></div>
+</div>
+
+</div>
+
+<script>
+function parse(input, extra=false){
+  return input.trim().split("\n").map(l=>{
+    let p=l.split(/\s+/);
+    return extra?
+    {pid:p[0],at:+p[1],bt:+p[2],pr:+p[3]}:
+    {pid:p[0],at:+p[1],bt:+p[2]};
+  });
+}
+
+function render(id,gantt,res){
+  const g=document.getElementById(id+"-g");
+  const s=document.getElementById(id+"-s");
+  const t=document.getElementById(id+"-t");
+  const a=document.getElementById(id+"-a");
+  g.innerHTML=s.innerHTML=t.innerHTML=a.innerHTML="";
+
+  let total=0, tw=0, tt=0;
+  gantt.forEach(b=>total=b.end);
+
+  gantt.forEach(b=>{
+    let d=document.createElement("div");
+    d.className="block";
+    d.style.setProperty("--w",((b.end-b.start)/total)*100+"%");
+    d.textContent=b.pid;
+    g.appendChild(d);
+
+    let sp=document.createElement("span");
+    sp.style.flex=b.end-b.start;
+    sp.textContent=b.start;
+    s.appendChild(sp);
+  });
+  s.innerHTML+=`<span>${total}</span>`;
+
+  t.innerHTML="<tr><th>PID</th><th>AT</th><th>BT</th><th>CT</th><th>TAT</th><th>WT</th></tr>";
+  res.forEach(p=>{
+    tw+=p.wt; tt+=p.tat;
+    t.innerHTML+=`<tr><td>${p.pid}</td><td>${p.at}</td><td>${p.bt}</td><td>${p.ct}</td><td>${p.tat}</td><td>${p.wt}</td></tr>`;
+  });
+
+  a.innerHTML=`Avg WT: ${(tw/res.length).toFixed(2)} | Avg TAT: ${(tt/res.length).toFixed(2)}`;
+}
+
+/* FCFS */
+function runFCFS(){
+  let p=parse(document.getElementById("fcfs-in").value);
+  p.sort((a,b)=>a.at-b.at);
+  let t=0,g=[],r=[];
+  p.forEach(x=>{
+    if(t<x.at)t=x.at;
+    g.push({pid:x.pid,start:t,end:t+x.bt});
+    let ct=t+x.bt;
+    r.push({...x,ct,tat:ct-x.at,wt:ct-x.at-x.bt});
+    t=ct;
+  });
+  render("fcfs",g,r);
+}
+
+/* SJF */
+function runSJF(){
+  let p=parse(document.getElementById("sjf-in").value);
+  let t=0,g=[],r=[],done=[];
+  while(done.length<p.length){
+    let av=p.filter(x=>x.at<=t&&!done.includes(x));
+    if(av.length==0){t++;continue;}
+    av.sort((a,b)=>a.bt-b.bt);
+    let x=av[0];
+    g.push({pid:x.pid,start:t,end:t+x.bt});
+    let ct=t+x.bt;
+    r.push({...x,ct,tat:ct-x.at,wt:ct-x.at-x.bt});
+    done.push(x); t=ct;
+  }
+  render("sjf",g,r);
+}
+
+/* PRIORITY */
+function runPriority(){
+  let p=parse(document.getElementById("pri-in").value,true);
+  let t=0,g=[],r=[],done=[];
+  while(done.length<p.length){
+    let av=p.filter(x=>x.at<=t&&!done.includes(x));
+    if(av.length==0){t++;continue;}
+    av.sort((a,b)=>a.pr-b.pr);
+    let x=av[0];
+    g.push({pid:x.pid,start:t,end:t+x.bt});
+    let ct=t+x.bt;
+    r.push({...x,ct,tat:ct-x.at,wt:ct-x.at-x.bt});
+    done.push(x); t=ct;
+  }
+  render("pri",g,r);
+}
+
+/* RR */
+function runRR(){
+  let q=+document.getElementById("qt").value;
+  let p=parse(document.getElementById("rr-in").value);
+  let t=0,g=[],r=[];
+  let rem=p.map(x=>({...x,rt:x.bt}));
+  let qn=[];
+  while(rem.length||qn.length){
+    rem.filter(x=>x.at<=t).forEach(x=>{
+      qn.push(x);
+      rem=rem.filter(y=>y!==x);
+    });
+    if(qn.length==0){t++;continue;}
+    let x=qn.shift();
+    let exec=Math.min(q,x.rt);
+    g.push({pid:x.pid,start:t,end:t+exec});
+    t+=exec; x.rt-=exec;
+    rem.filter(y=>y.at<=t).forEach(y=>{
+      qn.push(y);
+      rem=rem.filter(z=>z!==y);
+    });
+    if(x.rt>0) qn.push(x);
+    else{
+      let ct=t;
+      r.push({...x,ct,tat:ct-x.at,wt:ct-x.at-x.bt});
+    }
+  }
+  render("rr",g,r);
+}
+</script>
+
+</body>
+</html>
