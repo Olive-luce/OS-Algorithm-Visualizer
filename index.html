@@ -173,6 +173,18 @@ P3 2 3</textarea>
 <div class="avg" id="rr-a"></div>
 </div>
 
+<!-- SRTF -->
+<div class="card">
+<h3>Shortest Remaining Time First (SRTF)</h3>
+<textarea id="srtf-in">P1 0 8
+P2 1 4
+P3 2 2</textarea>
+<button onclick="runSRTF()">Run</button>
+<div class="gantt" id="srtf-g"></div>
+<div class="scale" id="srtf-s"></div>
+<table id="srtf-t"></table>
+<div class="avg" id="srtf-a"></div>
+</div>
 </div>
 
 <script>
@@ -295,6 +307,79 @@ function runRR(){
     }
   }
   render("rr",g,r);
+}
+/* SRTF */
+function runSRTF(){
+  let p = parse(document.getElementById("srtf-in").value);
+
+  let t = 0, completed = 0;
+  let n = p.length;
+
+  let rem = p.map(x => ({...x, rt: x.bt, ct:0}));
+  let g = [], r = [];
+
+  let current = null;
+  let startTime = 0;
+
+  while(completed < n){
+
+    // Get available processes
+    let av = rem.filter(x => x.at <= t && x.rt > 0);
+
+if(av.length === 0){
+  if(current !== "Idle"){
+    if(current !== null){
+      g.push({pid: current, start: startTime, end: t});
+    }
+    current = "Idle";
+    startTime = t;
+  }
+  t++;
+  continue;
+}
+
+    // Pick shortest remaining time
+    av.sort((a,b)=>a.rt - b.rt);
+    let x = av[0];
+
+    // Gantt block handling (for preemption)
+    if(current !== x.pid){
+      if(current !== null){
+        g.push({pid: current, start: startTime, end: t});
+      }
+      current = x.pid;
+      startTime = t;
+    }
+
+    // Execute for 1 unit
+    x.rt--;
+    t++;
+
+    // If finished
+    if(x.rt === 0){
+      x.ct = t;
+      completed++;
+
+      r.push({
+        pid: x.pid,
+        at: x.at,
+        bt: x.bt,
+        ct: x.ct,
+        tat: x.ct - x.at,
+        wt: (x.ct - x.at - x.bt)
+      });
+    }
+  }
+
+// Push last Gantt block
+if(current !== null){
+  g.push({pid: current, start: startTime, end: t});
+}
+
+// FIX: sort output
+r.sort((a,b)=> a.pid.localeCompare(b.pid));
+
+render("srtf", g, r);
 }
 </script>
 
